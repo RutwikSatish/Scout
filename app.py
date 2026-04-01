@@ -144,8 +144,8 @@ c5.metric("Shortlist (score ≥ 75)", len(filtered[filtered["Score"] >= 75]))
 st.markdown("---")
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs([
-    "Ranked shortlist", "Landscape map", "Scoring breakdown", "Compare companies"
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "Ranked shortlist", "Landscape map", "Scoring breakdown", "Compare companies", "Data preview"
 ])
 
 # TAB 1 — RANKED TABLE
@@ -163,7 +163,7 @@ with tab1:
         return "background-color: #FCEBEB; color: #501313"
 
     st.dataframe(
-        styled.style.applymap(color_score, subset=["Score"]),
+        styled.style.map(color_score, subset=["Score"]),
         use_container_width=True,
         hide_index=True,
         height=480
@@ -307,3 +307,67 @@ with tab4:
                     f"<b>{name}</b> ({score}/100) — {rec}</div>",
                     unsafe_allow_html=True
                 )
+
+# TAB 5 — DATA PREVIEW
+with tab5:
+    st.markdown("#### Raw dataset preview")
+    st.caption("Full underlying dataset used by the scoring model. All 40 companies across 4 clusters and 6 regions.")
+
+    col1, col2, col3 = st.columns(3)
+    preview_cluster = col1.selectbox(
+        "Filter by cluster",
+        options=["All"] + sorted(df["Cluster"].unique().tolist())
+    )
+    preview_stage = col2.selectbox(
+        "Filter by stage",
+        options=["All"] + STAGE_ORDER
+    )
+    preview_region = col3.selectbox(
+        "Filter by region",
+        options=["All"] + sorted(df["Region"].unique().tolist())
+    )
+
+    preview_df = df.copy()
+    if preview_cluster != "All":
+        preview_df = preview_df[preview_df["Cluster"] == preview_cluster]
+    if preview_stage != "All":
+        preview_df = preview_df[preview_df["Stage"] == preview_stage]
+    if preview_region != "All":
+        preview_df = preview_df[preview_df["Region"] == preview_region]
+
+    st.markdown(f"Showing **{len(preview_df)}** of **{len(df)}** companies")
+
+    raw_cols = ["Company", "Cluster", "Region", "Stage", "Founded",
+                "Employees", "Funding ($M)", "TRL", "Strategic Alignment",
+                "Patent Activity", "Partnership Track Record",
+                "Financial Runway (mo)", "Website", "Description"]
+    st.dataframe(preview_df[raw_cols].reset_index(drop=True),
+                 use_container_width=True, hide_index=True, height=420)
+
+    st.markdown("#### Dimension distributions")
+    dist_dim = st.selectbox(
+        "Select dimension to visualize",
+        options=["TRL", "Strategic Alignment", "Patent Activity",
+                 "Partnership Track Record", "Financial Runway (mo)", "Funding ($M)"]
+    )
+    fig5 = px.histogram(
+        preview_df,
+        x=dist_dim,
+        color="Cluster",
+        color_discrete_map=CLUSTER_COLORS,
+        nbins=10,
+        template="simple_white",
+        barmode="overlay",
+        opacity=0.75
+    )
+    fig5.update_layout(height=300, margin=dict(t=20, b=40),
+                       legend=dict(orientation="h", yanchor="bottom", y=1.02))
+    st.plotly_chart(fig5, use_container_width=True)
+
+    st.markdown("#### Summary statistics")
+    stat_cols = ["TRL", "Strategic Alignment", "Patent Activity",
+                 "Partnership Track Record", "Financial Runway (mo)", "Funding ($M)", "Employees"]
+    st.dataframe(
+        preview_df[stat_cols].describe().round(2),
+        use_container_width=True
+    )
